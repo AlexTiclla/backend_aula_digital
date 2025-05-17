@@ -1,4 +1,3 @@
-¡Por supuesto! Aquí tienes un ejemplo de README en español para tu proyecto backend con FastAPI y PostgreSQL:
 
 ---
 

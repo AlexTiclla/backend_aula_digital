@@ -3,7 +3,7 @@
 
 # Aula Digital - Backend
 
-**Aula Digital** es un sistema backend desarrollado con **FastAPI** y **PostgreSQL** para la gestión integral de alumnos, materias, notas por periodos, asistencia, participación y predicción del rendimiento académico utilizando Inteligencia Artificial.
+**Aula Digital** es un sistema backend desarrollado con **PostgreSQL** para la gestión integral de alumnos, materias, notas por periodos, asistencia, participación y predicción del rendimiento académico utilizando Inteligencia Artificial.
 
 ---
 
@@ -22,7 +22,6 @@
 
 ## Tecnologías utilizadas
 
-- [FastAPI](https://fastapi.tiangolo.com/)
 - [PostgreSQL](https://www.postgresql.org/)
 - [SQLAlchemy](https://www.sqlalchemy.org/)
 - [Uvicorn](https://www.uvicorn.org/)

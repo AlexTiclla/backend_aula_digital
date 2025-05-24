@@ -1,0 +1,117 @@
+---
+config:
+  layout: elk
+---
+classDiagram
+class Materia {
+  +Nombre
+  +Descripcion
+  +area_conocimiento
+  +nivel_dificultad
+  +is_active
+  +horas_semanales
+}
+class Usuario {
+  +Nombre
+  +Apellido
+  +Email
+  +Password
+  +Rol
+  +created_at
+  +updated_at
+  +is_active
+}
+class Nota {
+  +id
+  +estudiante_id
+  +curso_materia_id
+  +valor
+  +fecha
+  +descripcion
+  +rendimiento
+}
+class Periodo {
+  +Bimestre
+  +Anio
+  +fecha_inicio
+  +fecha_fin
+  +is_active
+  +descripcion
+}
+class Curso_Periodo {
+  +id
+  +curso_id
+  +periodo_id
+  +aula
+  +turno
+  +capacidad_actual
+  +is_active
+}
+class Estudiante {
+  +id
+  +usuario_id
+  +tutor_id
+  +direccion
+  +fecha_nacimiento
+}
+class Profesor {
+  +id
+  +usuario_id
+  +telefono
+  +carnet_identidad
+  +especialidad
+  +nivel_academico
+}
+class Administrativo {
+  +Id
+  +usuario_id
+}
+class Curso_Materia {
+  +id
+  +materia_id
+  +curso_periodo_id
+  +profesor_id
+  +horario
+  +aula
+  +modalidad
+}
+class Curso {
+  +Nombre
+  +Sigla
+  +nivel
+  +capacidad_maxima
+  +descripcion
+  +is_active
+}
+class Tutor {
+  +id
+  +relacion_estudiante
+  +ocupacion
+  +lugar_trabajo
+  +correo
+  +telefono
+}
+class Participaciones {
+  +id
+  +estudiante_id
+  +curso_materia_id
+  +asistencia
+  +participacion_clase
+  +fecha
+  +observacion
+}
+Estudiante --> Nota : tiene
+Estudiante --> Participaciones : tiene
+Estudiante --> Tutor : tiene
+Estudiante --> Curso_Periodo : pertenece
+Profesor --> Curso_Materia : enseña
+Curso --> Curso_Periodo : pertenece
+Periodo --> Curso_Periodo : contiene
+Curso_Periodo --> Materia : pertenece
+Curso_Materia --> Participaciones : registra
+Curso_Materia --> Nota : registra
+Curso_Periodo --> Curso_Materia : tiene
+Administrativo --> Materia : registra
+Estudiante --|> Usuario
+Profesor --|> Usuario
+Administrativo --|> Usuario

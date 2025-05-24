@@ -1,2 +1,6 @@
 venv/
 .env
+
+# Alembic
+alembic/__pycache__/
+alembic/versions/__pycache__/

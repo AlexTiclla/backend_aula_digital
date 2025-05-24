@@ -12,9 +12,6 @@
 
 ## Requisitos No Funcionales
 
-### Rendimiento y Escalabilidad
-- RNF01: El sistema debe soportar al menos 500 usuarios simultáneos.
-- RNF02: La predicción del rendimiento no debe demorar más de 3 segundos por solicitud.
 
 ### Seguridad
 - RNF03: El acceso al sistema debe estar protegido con autenticación JWT.

@@ -37,13 +37,13 @@ async def get_current_user(
     
     return user
 
-async def get_current_admin(current_user: Usuario = Depends(get_current_user)) -> Usuario:
-    """
-    Verifica si el usuario es administrador.
-    """
-    if current_user.rol != RolUsuario.ADMINISTRATIVO:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Se requieren permisos de administrador"
-        )
-    return current_user
+# async def get_current_admin(current_user: Usuario = Depends(get_current_user)) -> Usuario:
+#     """
+#     Verifica si el usuario es administrador.
+#     """
+#     if current_user.rol != RolUsuario.ADMINISTRATIVO:
+#         raise HTTPException(
+#             status_code=status.HTTP_403_FORBIDDEN,
+#             detail="Se requieren permisos de administrador"
+#         )
+#     return current_user

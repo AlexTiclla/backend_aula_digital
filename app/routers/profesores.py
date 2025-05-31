@@ -5,7 +5,7 @@ from typing import List
 from ..database import get_db
 from ..models import Usuario, Profesor, RolUsuario
 from ..schemas.users import ProfesorResponse, ProfesorCreate, ProfesorUpdate
-from ..dependencies.auth import get_current_user, get_current_admin
+from ..dependencies.auth import get_current_user
 
 router = APIRouter(prefix="/api/v1/profesores", tags=["profesores"])
 
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/v1/profesores", tags=["profesores"])
 async def get_profesores(
     skip: int = 0, 
     limit: int = 100,
-    current_user: Usuario = Depends(get_current_admin),
+    current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -97,7 +97,7 @@ async def get_profesor(
 @router.post("/", response_model=ProfesorResponse)
 async def create_profesor(
     profesor_data: ProfesorCreate,
-    current_user: Usuario = Depends(get_current_admin),
+    current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -191,7 +191,7 @@ async def update_profesor(
 @router.delete("/{profesor_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_profesor(
     profesor_id: int,
-    current_user: Usuario = Depends(get_current_admin),
+    current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """

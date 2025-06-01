@@ -2,6 +2,9 @@
 from sqlalchemy.orm import Session
 from datetime import datetime, UTC  # Agregamos UTC para corregir el warning
 from .models import Usuario, Estudiante, Profesor, Administrativo, RolUsuario, Tutor
+
+from .models import Curso, Periodo, CursoPeriodo, Materia, CursoMateria  # Nuevos modelos de YO
+
 from .database import SessionLocal
 from passlib.context import CryptContext
 
@@ -109,6 +112,60 @@ def seed_data():
             usuario_id=admin1.id
         )
         db.add(perfil_admin1)
+        
+               
+        curso1 = Curso(
+            nombre="1ro Secundaria",
+            sigla="1roSec",
+            nivel="Intermedio",
+            capacidad_maxima=30,
+            descripcion="Curso introductorio de matemáticas",
+            is_active=True
+        )
+        db.add(curso1)
+        db.flush()
+
+        periodo1 = Periodo(
+            bimestre=1,
+            anio=2025,
+            fecha_inicio=datetime(2025, 2, 1),
+            fecha_fin=datetime(2025, 4, 1),
+            is_active=True,
+            descripcion="Primer bimestre 2025"
+        )
+        db.add(periodo1)
+        db.flush()
+
+        curso_periodo1 = CursoPeriodo(
+            curso_id=curso1.id,
+            periodo_id=periodo1.id,
+            aula="Aula 101",
+            turno="Mañana",
+            capacidad_actual=20,
+            is_active=True
+        )
+        db.add(curso_periodo1)
+        db.flush()
+
+        materia1 = Materia(
+            nombre="Matematicas",
+            descripcion="Mates",
+            area_conocimiento="Matemáticas",
+            horas_semanales=4,
+            is_active=True
+        )
+        db.add(materia1)
+        db.flush()
+
+        curso_materia1 = CursoMateria(
+            curso_periodo_id=curso_periodo1.id,
+            materia_id=materia1.id
+        )
+        db.add(curso_materia1)
+
+        db.commit()
+        
+        
 
         db.commit()
         print("Datos de prueba insertados correctamente")

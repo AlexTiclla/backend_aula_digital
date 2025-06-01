@@ -23,6 +23,13 @@ async def get_usuarios(
     usuarios = db.query(Usuario).offset(skip).limit(limit).all()
     return usuarios
 
+@router.get("/me", response_model=UsuarioResponse)
+async def read_current_user(current_user: Usuario = Depends(get_current_user)):
+    """
+    Devuelve los datos del usuario autenticado.
+    """
+    return current_user
+
 @router.get("/{usuario_id}", response_model=UsuarioResponse)
 async def get_usuario(
     usuario_id: int,

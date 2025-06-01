@@ -1,5 +1,5 @@
 # app/models/__init__.py
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Enum
+from sqlalchemy import Column, Date, Integer, String, Boolean, DateTime, ForeignKey, Enum
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 import enum
@@ -67,6 +67,7 @@ class Profesor(Base):
     
     # Relación con usuario
     usuario = relationship("Usuario", back_populates="profesor")
+    curso_materias = relationship("CursoMateria", back_populates="profesor")
 
 class Administrativo(Base):
     __tablename__ = "administrativos"
@@ -75,3 +76,74 @@ class Administrativo(Base):
     
     # Relación con usuario
     usuario = relationship("Usuario", back_populates="administrativo")
+
+class Periodo(Base):
+    __tablename__ = "periodo"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bimestre = Column(Integer, nullable=False)  # Bimestre (1, 2, 3...)
+    anio = Column(Integer, nullable=False)      # Año del periodo
+    fecha_inicio = Column(Date, nullable=False)
+    fecha_fin = Column(Date, nullable=False)
+    is_active = Column(Boolean, default=True)
+    descripcion = Column(String, nullable=True)
+
+    curso_periodos = relationship("CursoPeriodo", back_populates="periodo")
+    
+    
+class Curso(Base):
+    __tablename__ = "curso"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String, nullable=False)
+    sigla = Column(String, nullable=False)
+    nivel = Column(String, nullable=False)
+    capacidad_maxima = Column(Integer, nullable=False)
+    descripcion = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True)
+
+    # Relación con curso_periodo
+    curso_periodos = relationship("CursoPeriodo", back_populates="curso")
+    
+class CursoPeriodo(Base):
+    __tablename__ = "curso_periodo"
+
+    id = Column(Integer, primary_key=True, index=True)
+    curso_id = Column(Integer, ForeignKey("curso.id"))
+    periodo_id = Column(Integer, ForeignKey("periodo.id"))
+    aula = Column(String)
+    turno = Column(String)
+    capacidad_actual = Column(Integer)
+    is_active = Column(Boolean, default=True)
+
+    curso = relationship("Curso", back_populates="curso_periodos")
+    periodo = relationship("Periodo", back_populates="curso_periodos")
+    curso_materias = relationship("CursoMateria", back_populates="curso_periodo")   
+
+class CursoMateria(Base):
+    __tablename__ = "curso_materia"
+
+    id = Column(Integer, primary_key=True, index=True)
+    materia_id = Column(Integer, ForeignKey("materia.id"), nullable=False)
+    curso_periodo_id = Column(Integer, ForeignKey("curso_periodo.id"), nullable=False)
+    profesor_id = Column(Integer, ForeignKey("profesores.id"), nullable=False)
+    horario = Column(String, nullable=True)  # Puedes especificar formato (ej: "08:00-10:00")
+    aula = Column(String, nullable=True)     # Aula donde se imparte la materia
+    modalidad = Column(String, nullable=True)  # Presencial, virtual, híbrida, etc.
+    
+    # Relaciones con otras tablas
+    curso_periodo = relationship("CursoPeriodo", back_populates="curso_materias")
+    materia = relationship("Materia", back_populates="curso_materias")
+    profesor = relationship(Profesor, back_populates="curso_materias")
+
+    
+
+class Materia(Base):
+    __tablename__ = "materia"
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String, nullable=False)
+    descripcion = Column(String, nullable=True)
+    area_conocimiento = Column(String, nullable=False)
+    horas_semanales = Column(Integer, nullable=False)
+    is_active = Column(Boolean, default=True)
+    curso_materias = relationship("CursoMateria", back_populates="materia")   

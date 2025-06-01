@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..database import get_db
-from ..models.periodo import Periodo
+from ..models import Periodo
 from ..schemas.periodo import PeriodoCreate, PeriodoUpdate, PeriodoResponse
 from ..dependencies.auth import get_current_admin
 

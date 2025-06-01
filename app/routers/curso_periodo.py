@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..database import get_db
-from ..models.curso_periodo import CursoPeriodo
+from ..models import CursoPeriodo
 from ..schemas.curso_periodo import CursoPeriodoCreate, CursoPeriodoUpdate, CursoPeriodoResponse
 from ..dependencies.auth import get_current_admin
 

@@ -5,7 +5,7 @@ from typing import List
 from ..database import get_db
 from ..models import Usuario, Estudiante, Tutor, RolUsuario
 from ..schemas.users import EstudianteResponse, EstudianteCreate, EstudianteUpdate
-from ..dependencies.auth import get_current_user, get_current_admin
+from ..dependencies.auth import get_current_user
 
 router = APIRouter(prefix="/api/v1/estudiantes", tags=["estudiantes"])
 
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/v1/estudiantes", tags=["estudiantes"])
 async def get_estudiantes(
     skip: int = 0, 
     limit: int = 100,
-    current_user: Usuario = Depends(get_current_admin),
+    current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -107,7 +107,7 @@ async def get_estudiante(
 @router.post("/", response_model=EstudianteResponse)
 async def create_estudiante(
     estudiante_data: EstudianteCreate,
-    current_user: Usuario = Depends(get_current_admin),
+    current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -214,7 +214,7 @@ async def update_estudiante(
 @router.delete("/{estudiante_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_estudiante(
     estudiante_id: int,
-    current_user: Usuario = Depends(get_current_admin),
+    current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """

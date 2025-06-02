@@ -5,7 +5,7 @@ from typing import List
 from ..database import get_db
 from ..models import Tutor, Usuario, RolUsuario
 from pydantic import BaseModel
-from ..dependencies.auth import get_current_user, get_current_admin
+from ..dependencies.auth import get_current_user
 
 # Schemas
 class TutorBase(BaseModel):
@@ -73,7 +73,7 @@ async def get_tutor(
 @router.post("/", response_model=TutorResponse)
 async def create_tutor(
     tutor_data: TutorCreate,
-    current_user: Usuario = Depends(get_current_admin),
+    current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -99,7 +99,7 @@ async def create_tutor(
 async def update_tutor(
     tutor_id: int,
     tutor_data: TutorUpdate,
-    current_user: Usuario = Depends(get_current_admin),
+    current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -135,7 +135,7 @@ async def update_tutor(
 @router.delete("/{tutor_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_tutor(
     tutor_id: int,
-    current_user: Usuario = Depends(get_current_admin),
+    current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """

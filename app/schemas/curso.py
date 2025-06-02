@@ -25,3 +25,19 @@ class CursoResponse(CursoBase):
 
     class Config:
         from_attributes = True
+        
+class CursoDetailResponse(BaseModel):
+    id: int
+    nombre: str
+    sigla: str
+    nivel: str
+    capacidad_maxima: int
+    descripcion: Optional[str] = None
+    is_active: Optional[bool] = True
+    capacidad_actual: int
+    profesor: Optional[str] = None
+    horario: Optional[str] = None
+    aula: Optional[str] = None
+
+    class Config:
+        from_attributes = True        

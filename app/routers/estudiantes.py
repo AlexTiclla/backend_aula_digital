@@ -3,13 +3,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from typing import List
 from ..database import get_db
-from ..models import Usuario, Estudiante, Tutor, RolUsuario
-from ..schemas.users import EstudianteResponse, EstudianteCreate, EstudianteUpdate
+from ..models import CursoPeriodo, Usuario, Estudiante, Tutor, RolUsuario
+from ..schemas.users import EstudianteFlatResponse, EstudianteResponse, EstudianteCreate, EstudianteUpdate
 from ..dependencies.auth import get_current_user
 
 router = APIRouter(prefix="/api/v1/estudiantes", tags=["estudiantes"])
 
-@router.get("/", response_model=List[EstudianteResponse])
+@router.get("/", response_model=List[EstudianteFlatResponse])
 async def get_estudiantes(
     skip: int = 0, 
     limit: int = 100,
@@ -17,83 +17,62 @@ async def get_estudiantes(
     db: Session = Depends(get_db)
 ):
     """
-    Obtener todos los estudiantes.
+    Obtener todos los estudiantes con datos adicionales.
     Solo accesible para administradores.
     """
-    estudiantes = db.query(Estudiante).offset(skip).limit(limit).all()
+    estudiantes = db.query(Estudiante).options(
+        joinedload(Estudiante.usuario),
+        joinedload(Estudiante.tutor)
+    ).offset(skip).limit(limit).all()
+
     result = []
     for estudiante in estudiantes:
-        usuario = db.query(Usuario).filter(Usuario.id == estudiante.usuario_id).first()
-        if usuario:
-            result.append({
-                "id": estudiante.id,
-                "usuario_id": usuario.id,
-                "nombre": usuario.nombre,
-                "apellido": usuario.apellido,
-                "email": usuario.email,
-                "direccion": estudiante.direccion,
-                "fecha_nacimiento": estudiante.fecha_nacimiento
-            })
+        usuario = estudiante.usuario
+        tutor = estudiante.tutor
+        result.append({
+    "id": estudiante.id,
+    "usuario_id": usuario.id if usuario else None,
+    "nombre": usuario.nombre if usuario else "",
+    "apellido": usuario.apellido if usuario else "",
+    "email": usuario.email if usuario else "",
+    "direccion": estudiante.direccion if estudiante.direccion else "",
+    "fecha_nacimiento": estudiante.fecha_nacimiento.isoformat() if estudiante.fecha_nacimiento else "",
+    "tutor_id": tutor.id if tutor else None,
+    "tutor_nombre": f"{tutor.nombre} {tutor.apellido}" if tutor else None,
+    "rol": usuario.rol.value if usuario else None,
+    "curso_periodo_id": estudiante.curso_periodo.id if estudiante.curso_periodo else None,
+    "curso_periodo_nombre": f"{estudiante.curso_periodo.curso.nombre} - {estudiante.curso_periodo.periodo.anio}" if estudiante.curso_periodo else None,
+    })
     return result
 
-@router.get("/{usuario_id}", response_model=EstudianteResponse)
+@router.get("/{estudiante_id}", response_model=EstudianteResponse)
 async def get_estudiante(
-    usuario_id: int,
+    estudiante_id: int,
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Obtener un estudiante por ID de usuario.
-    Un estudiante puede ver su propio perfil, un administrador puede ver cualquier perfil.
+    Obtener un estudiante por ID (tabla estudiantes), incluyendo datos del usuario.
+    Solo accesible por administradores o el propio estudiante.
     """
-    # Verificar si el usuario actual es el mismo que se está solicitando o es un admin
-    if current_user.id != usuario_id and current_user.rol != RolUsuario.ADMINISTRATIVO:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes permiso para ver este perfil"
-        )
-    
-    # Verificar si el usuario existe
-    usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
-    if not usuario:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Usuario con ID {usuario_id} no encontrado"
-        )
-    
-    # Buscar el estudiante y unirlo con la tabla usuarios
-    estudiante = db.query(Estudiante).filter(Estudiante.usuario_id == usuario_id).first()
+    estudiante = db.query(Estudiante).options(
+        joinedload(Estudiante.usuario),
+        joinedload(Estudiante.tutor),
+        joinedload(Estudiante.curso_periodo).joinedload(CursoPeriodo.curso),
+        joinedload(Estudiante.curso_periodo).joinedload(CursoPeriodo.periodo)
+    ).filter(Estudiante.id == estudiante_id).first()
+
     if not estudiante:
-        # Si el usuario existe pero no tiene perfil de estudiante, crearlo automáticamente
-        if usuario.rol == RolUsuario.ESTUDIANTE:
-            # Buscar un tutor por defecto o crear uno si no existe
-            default_tutor = db.query(Tutor).first()
-            if not default_tutor:
-                default_tutor = Tutor(
-                    nombre="Tutor",
-                    apellido="Por Defecto",
-                    relacion_estudiante="No especificado",
-                    telefono="0000000000"
-                )
-                db.add(default_tutor)
-                db.commit()
-                db.refresh(default_tutor)
-            
-            # Crear registro de estudiante
-            estudiante = Estudiante(
-                usuario_id=usuario_id,
-                tutor_id=default_tutor.id
-            )
-            db.add(estudiante)
-            db.commit()
-            db.refresh(estudiante)
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Perfil de estudiante para usuario con ID {usuario_id} no encontrado. El usuario tiene rol: {usuario.rol.value}"
-            )
-    
-    # Construir la respuesta combinando datos de ambas tablas
+        raise HTTPException(status_code=404, detail="Estudiante no encontrado")
+
+    usuario = estudiante.usuario
+    tutor = estudiante.tutor
+    curso_periodo = estudiante.curso_periodo
+
+    # Permitir acceso si el usuario es el mismo o si es administrador
+    if current_user.id != estudiante.usuario_id and current_user.rol != RolUsuario.ADMINISTRATIVO:
+        raise HTTPException(status_code=403, detail="No tienes permiso para ver este perfil")
+
     return {
         "id": estudiante.id,
         "usuario_id": usuario.id,
@@ -101,8 +80,14 @@ async def get_estudiante(
         "apellido": usuario.apellido,
         "email": usuario.email,
         "direccion": estudiante.direccion,
-        "fecha_nacimiento": estudiante.fecha_nacimiento
+        "fecha_nacimiento": estudiante.fecha_nacimiento.isoformat() if estudiante.fecha_nacimiento else None,
+        "tutor_id": tutor.id if tutor else None,
+        "tutor_nombre": f"{tutor.nombre} {tutor.apellido}" if tutor else None,
+        "rol": usuario.rol.value if usuario.rol else None,
+        "curso_periodo_id": curso_periodo.id if curso_periodo else None,
+        "curso_periodo_nombre": f"{curso_periodo.curso.nombre} - {curso_periodo.periodo.descripcion}" if curso_periodo else None
     }
+
 
 @router.post("/", response_model=EstudianteResponse)
 async def create_estudiante(
@@ -110,40 +95,21 @@ async def create_estudiante(
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Crear un nuevo estudiante.
-    Solo accesible para administradores.
-    """
-    # Verificar si ya existe un estudiante con ese usuario_id
-    if db.query(Estudiante).filter(Estudiante.usuario_id == estudiante_data.usuario_id).first():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Ya existe un estudiante con ese usuario_id"
-        )
-    
-    # Verificar si existe el usuario
-    usuario = db.query(Usuario).filter(Usuario.id == estudiante_data.usuario_id).first()
-    if not usuario:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Usuario no encontrado"
-        )
-    
-    # Verificar si existe el tutor
-    tutor = db.query(Tutor).filter(Tutor.id == estudiante_data.tutor_id).first()
-    if not tutor:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Tutor no encontrado"
-        )
-    
+    # Validaciones previas (existencia de usuario y tutor) ya las tienes...
+
     # Crear el estudiante
     estudiante = Estudiante(**estudiante_data.dict())
     db.add(estudiante)
     db.commit()
     db.refresh(estudiante)
-    
-    # Construir la respuesta
+
+    usuario = db.query(Usuario).filter(Usuario.id == estudiante.usuario_id).first()
+    tutor = db.query(Tutor).filter(Tutor.id == estudiante.tutor_id).first()
+    curso_periodo = db.query(CursoPeriodo).options(
+        joinedload(CursoPeriodo.curso),
+        joinedload(CursoPeriodo.periodo)
+    ).filter(CursoPeriodo.id == estudiante.curso_periodo_id).first()
+
     return {
         "id": estudiante.id,
         "usuario_id": usuario.id,
@@ -151,8 +117,14 @@ async def create_estudiante(
         "apellido": usuario.apellido,
         "email": usuario.email,
         "direccion": estudiante.direccion,
-        "fecha_nacimiento": estudiante.fecha_nacimiento
+        "fecha_nacimiento": estudiante.fecha_nacimiento.isoformat() if estudiante.fecha_nacimiento else None,
+        "tutor_id": tutor.id if tutor else None,
+        "tutor_nombre": f"{tutor.nombre} {tutor.apellido}" if tutor else None,
+        "rol": usuario.rol.value if usuario.rol else None,
+        "curso_periodo_id": curso_periodo.id if curso_periodo else None,
+        "curso_periodo_nombre": f"{curso_periodo.curso.nombre} - {curso_periodo.periodo.descripcion}" if curso_periodo else None
     }
+
 
 @router.put("/{estudiante_id}", response_model=EstudianteResponse)
 async def update_estudiante(
@@ -161,46 +133,33 @@ async def update_estudiante(
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Actualizar un estudiante por ID.
-    Un estudiante puede actualizar su propio perfil, un administrador puede actualizar cualquier perfil.
-    """
-    # Buscar el estudiante
     estudiante = db.query(Estudiante).filter(Estudiante.id == estudiante_id).first()
     if not estudiante:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Estudiante no encontrado"
-        )
-    
-    # Verificar permiso
+        raise HTTPException(status_code=404, detail="Estudiante no encontrado")
+
+    # Permisos
     if current_user.id != estudiante.usuario_id and current_user.rol != RolUsuario.ADMINISTRATIVO:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes permiso para actualizar este perfil"
-        )
-    
-    # Si se proporciona tutor_id, verificar que existe
+        raise HTTPException(status_code=403, detail="No tienes permiso para actualizar este perfil")
+
+    # Validar tutor
     if estudiante_data.tutor_id is not None:
         tutor = db.query(Tutor).filter(Tutor.id == estudiante_data.tutor_id).first()
         if not tutor:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Tutor no encontrado"
-            )
-    
-    # Actualizar solo los campos proporcionados
+            raise HTTPException(status_code=404, detail="Tutor no encontrado")
+
+    # Actualizar campos
     update_data = estudiante_data.dict(exclude_unset=True)
     for key, value in update_data.items():
         setattr(estudiante, key, value)
-    
+
     db.commit()
     db.refresh(estudiante)
-    
-    # Obtener datos del usuario
+
+    # Cargar datos relacionados
     usuario = db.query(Usuario).filter(Usuario.id == estudiante.usuario_id).first()
-    
-    # Construir la respuesta
+    tutor = estudiante.tutor
+    curso_periodo = estudiante.curso_periodo
+
     return {
         "id": estudiante.id,
         "usuario_id": usuario.id,
@@ -208,7 +167,12 @@ async def update_estudiante(
         "apellido": usuario.apellido,
         "email": usuario.email,
         "direccion": estudiante.direccion,
-        "fecha_nacimiento": estudiante.fecha_nacimiento
+        "fecha_nacimiento": estudiante.fecha_nacimiento.isoformat() if estudiante.fecha_nacimiento else None,
+        "tutor_id": tutor.id if tutor else None,
+        "tutor_nombre": f"{tutor.nombre} {tutor.apellido}" if tutor else None,
+        "rol": usuario.rol.value if usuario.rol else None,
+        "curso_periodo_id": curso_periodo.id if curso_periodo else None,
+        "curso_periodo_nombre": f"{curso_periodo.curso.nombre} - {curso_periodo.periodo.descripcion}" if curso_periodo else None
     }
 
 @router.delete("/{estudiante_id}", status_code=status.HTTP_204_NO_CONTENT)

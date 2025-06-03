@@ -51,11 +51,20 @@ class Estudiante(Base):
     curso_periodo_id = Column(Integer, ForeignKey('curso_periodo.id'), default=1)  # Nueva clave foránea
     direccion = Column(String)
     fecha_nacimiento = Column(DateTime)
-    
-    # Relación
+
     usuario = relationship("Usuario", back_populates="estudiante")
     tutor = relationship("Tutor", back_populates="estudiantes")
-    curso_periodo = relationship("CursoPeriodo")  # Nueva relación
+    curso_periodo = relationship("CursoPeriodo", backref="estudiantes")  
+    
+    @property
+    def tutor_nombre(self):
+     return self.tutor.nombre if self.tutor else None
+
+    @property
+    def curso_periodo_nombre(self):
+        return self.curso_periodo.curso.nombre if self.curso_periodo and self.curso_periodo.curso else None
+
+
 
 class Profesor(Base):
     __tablename__ = "profesores"

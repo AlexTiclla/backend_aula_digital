@@ -18,8 +18,16 @@ class CursoPeriodoUpdate(BaseModel):
     capacidad_actual: Optional[int]
     is_active: Optional[bool]
 
-class CursoPeriodoResponse(CursoPeriodoBase):
+class CursoPeriodoResponse(BaseModel):
     id: int
+    curso_id: int
+    curso_nombre: Optional[str]  
+    periodo_id: int
+    periodo_nombre: Optional[str]  
+    aula: str
+    turno: str
+    capacidad_actual: int
+    is_active: bool
 
     class Config:
         from_attributes = True

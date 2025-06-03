@@ -4,6 +4,7 @@ from typing import Optional
 class CursoMateriaBase(BaseModel):
     curso_periodo_id: int
     materia_id: int
+    materiaNombre: Optional[str] = None
     profesor_id: int
     horario: Optional[str] = None
     aula: Optional[str] = None

@@ -48,13 +48,14 @@ class Estudiante(Base):
     id = Column(Integer, primary_key=True)
     usuario_id = Column(Integer, ForeignKey('usuarios.id'), unique=True, nullable=False)
     tutor_id = Column(Integer, ForeignKey('tutores.id'), nullable=False)  # Aquí está la clave foránea
-
+    curso_periodo_id = Column(Integer, ForeignKey('curso_periodo.id'), default=1)  # Nueva clave foránea
     direccion = Column(String)
     fecha_nacimiento = Column(DateTime)
     
     # Relación
     usuario = relationship("Usuario", back_populates="estudiante")
     tutor = relationship("Tutor", back_populates="estudiantes")
+    curso_periodo = relationship("CursoPeriodo")  # Nueva relación
 
 class Profesor(Base):
     __tablename__ = "profesores"
@@ -147,3 +148,42 @@ class Materia(Base):
     horas_semanales = Column(Integer, nullable=False)
     is_active = Column(Boolean, default=True)
     curso_materias = relationship("CursoMateria", back_populates="materia")   
+
+class Participaciones(Base):
+    __tablename__ = "participaciones"
+    id = Column(Integer, primary_key=True, index=True)
+    estudiante_id = Column(Integer, ForeignKey("estudiantes.id"), nullable=False)
+    curso_materia_id = Column(Integer, ForeignKey("curso_materia.id"), nullable=False)
+    participacion_clase = Column(String, nullable=True)
+    fecha = Column(DateTime, nullable=False, default=datetime.utcnow)
+    observacion = Column(String, nullable=True)
+    
+    # Relaciones
+    estudiante = relationship("Estudiante")
+    curso_materia = relationship("CursoMateria")
+
+class Asistencia(Base):
+    __tablename__ = "asistencia"
+    id = Column(Integer, primary_key=True, index=True)
+    estudiante_id = Column(Integer, ForeignKey("estudiantes.id"), nullable=False)
+    curso_materia_id = Column(Integer, ForeignKey("curso_materia.id"), nullable=False)
+    valor = Column(Boolean, nullable=False)  # True para presente, False para ausente
+    fecha = Column(DateTime, nullable=False, default=datetime.utcnow)
+    
+    # Relaciones
+    estudiante = relationship("Estudiante")
+    curso_materia = relationship("CursoMateria")
+
+class Nota(Base):
+    __tablename__ = "nota"
+    id = Column(Integer, primary_key=True, index=True)
+    estudiante_id = Column(Integer, ForeignKey("estudiantes.id"), nullable=False)
+    curso_materia_id = Column(Integer, ForeignKey("curso_materia.id"), nullable=False)
+    valor = Column(Integer, nullable=False)
+    fecha = Column(DateTime, nullable=False, default=datetime.utcnow)
+    descripcion = Column(String, nullable=True)
+    rendimiento = Column(String, nullable=True)  # bajo, medio, alto
+    
+    # Relaciones
+    estudiante = relationship("Estudiante")
+    curso_materia = relationship("CursoMateria")

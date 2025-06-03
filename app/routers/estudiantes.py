@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from typing import List
 from ..database import get_db
-from ..models import Usuario, Estudiante, Tutor, RolUsuario
+from ..models import Usuario, Estudiante, Tutor, RolUsuario, CursoMateria, Materia, Profesor
 from ..schemas.users import EstudianteResponse, EstudianteCreate, EstudianteUpdate
 from ..dependencies.auth import get_current_user
 
@@ -231,3 +231,67 @@ async def delete_estudiante(
     db.delete(estudiante)
     db.commit()
     return None
+
+@router.get("/{estudiante_id}/materias")
+async def obtener_materias_estudiante(
+    estudiante_id: int,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Obtener todas las materias del curso actual de un estudiante.
+    Un estudiante puede ver sus propias materias, un administrador puede ver las materias de cualquier estudiante.
+    """
+    # Buscar el estudiante
+    estudiante = db.query(Estudiante).filter(Estudiante.id == estudiante_id).first()
+    if not estudiante:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Estudiante no encontrado"
+        )
+    
+    # Verificar permisos
+    if current_user.id != estudiante.usuario_id and current_user.rol != RolUsuario.ADMINISTRATIVO:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permiso para ver estas materias"
+        )
+    
+    if not estudiante.curso_periodo_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="El estudiante no tiene un curso asignado"
+        )
+    
+    # Obtener todas las materias asociadas al curso_periodo del estudiante
+    curso_materias = db.query(CursoMateria).filter(
+        CursoMateria.curso_periodo_id == estudiante.curso_periodo_id
+    ).options(
+        joinedload(CursoMateria.materia),
+        joinedload(CursoMateria.profesor).joinedload(Profesor.usuario)
+    ).all()
+    
+    # Formatear los resultados
+    materias = []
+    for cm in curso_materias:
+        materias.append({
+            "id": cm.id,
+            "materia": {
+                "id": cm.materia.id,
+                "nombre": cm.materia.nombre,
+                "descripcion": cm.materia.descripcion,
+                "area_conocimiento": cm.materia.area_conocimiento,
+                "horas_semanales": cm.materia.horas_semanales
+            },
+            "profesor": {
+                "id": cm.profesor.id,
+                "nombre": cm.profesor.usuario.nombre,
+                "apellido": cm.profesor.usuario.apellido,
+                "especialidad": cm.profesor.especialidad
+            },
+            "horario": cm.horario,
+            "aula": cm.aula,
+            "modalidad": cm.modalidad
+        })
+    
+    return materias

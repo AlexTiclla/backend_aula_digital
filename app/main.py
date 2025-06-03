@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 
-from .routers import auth, estudiantes, profesores, usuarios, tutores, curso,periodo,curso_periodo,materia,curso_materia
+from .routers import auth, estudiantes, profesores, usuarios, tutores, curso,periodo,curso_periodo,materia,curso_materia, nota
 from .config import settings
 
 
@@ -68,3 +68,4 @@ app.include_router(periodo.router)
 app.include_router(curso_periodo.router)
 app.include_router(materia.router)
 app.include_router(curso_materia.router)
+app.include_router(nota.router)

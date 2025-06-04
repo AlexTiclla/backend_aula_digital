@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from typing import List
 from ..database import get_db
-from ..models import CursoPeriodo, Usuario, Estudiante, Tutor, RolUsuario, CursoMateria, Materia, Profesor
+from ..models import Usuario, Estudiante, Tutor, RolUsuario, CursoMateria, Materia, Profesor
 from ..schemas.users import EstudianteFlatResponse, EstudianteResponse, EstudianteCreate, EstudianteUpdate
 from ..dependencies.auth import get_current_user
 
@@ -30,19 +30,17 @@ async def get_estudiantes(
         usuario = estudiante.usuario
         tutor = estudiante.tutor
         result.append({
-    "id": estudiante.id,
-    "usuario_id": usuario.id if usuario else None,
-    "nombre": usuario.nombre if usuario else "",
-    "apellido": usuario.apellido if usuario else "",
-    "email": usuario.email if usuario else "",
-    "direccion": estudiante.direccion if estudiante.direccion else "",
-    "fecha_nacimiento": estudiante.fecha_nacimiento.isoformat() if estudiante.fecha_nacimiento else "",
-    "tutor_id": tutor.id if tutor else None,
-    "tutor_nombre": f"{tutor.nombre} {tutor.apellido}" if tutor else None,
-    "rol": usuario.rol.value if usuario else None,
-    "curso_periodo_id": estudiante.curso_periodo.id if estudiante.curso_periodo else None,
-    "curso_periodo_nombre": f"{estudiante.curso_periodo.curso.nombre} - {estudiante.curso_periodo.periodo.anio}" if estudiante.curso_periodo else None,
-    })
+            "id": estudiante.id,
+            "usuario_id": usuario.id if usuario else None,
+            "nombre": usuario.nombre if usuario else "",
+            "apellido": usuario.apellido if usuario else "",
+            "email": usuario.email if usuario else "",
+            "direccion": estudiante.direccion if estudiante.direccion else "",
+            "fecha_nacimiento": estudiante.fecha_nacimiento.isoformat() if estudiante.fecha_nacimiento else "",
+            "tutor_id": tutor.id if tutor else None,
+            "tutor_nombre": f"{tutor.nombre} {tutor.apellido}" if tutor else None,
+            "rol": usuario.rol.value if usuario else None,
+        })
     return result
 
 @router.get("/{estudiante_id}", response_model=EstudianteFlatResponse)
@@ -57,9 +55,7 @@ async def get_estudiante(
     """
     estudiante = db.query(Estudiante).options(
         joinedload(Estudiante.usuario),
-        joinedload(Estudiante.tutor),
-        joinedload(Estudiante.curso_periodo).joinedload(CursoPeriodo.curso),
-        joinedload(Estudiante.curso_periodo).joinedload(CursoPeriodo.periodo)
+        joinedload(Estudiante.tutor)
     ).filter(Estudiante.id == estudiante_id).first()
 
     if not estudiante:
@@ -67,7 +63,6 @@ async def get_estudiante(
 
     usuario = estudiante.usuario
     tutor = estudiante.tutor
-    curso_periodo = estudiante.curso_periodo
 
     # Permitir acceso si el usuario es el mismo o si es administrador
     if current_user.id != estudiante.usuario_id and current_user.rol != RolUsuario.ADMINISTRATIVO:
@@ -84,8 +79,6 @@ async def get_estudiante(
         "tutor_id": tutor.id if tutor else None,
         "tutor_nombre": f"{tutor.nombre} {tutor.apellido}" if tutor else None,
         "rol": usuario.rol.value if usuario.rol else None,
-        "curso_periodo_id": curso_periodo.id if curso_periodo else None,
-        "curso_periodo_nombre": f"{curso_periodo.curso.nombre} - {curso_periodo.periodo.descripcion}" if curso_periodo else None
     }
 
 
@@ -105,24 +98,13 @@ async def create_estudiante(
 
     usuario = db.query(Usuario).filter(Usuario.id == estudiante.usuario_id).first()
     tutor = db.query(Tutor).filter(Tutor.id == estudiante.tutor_id).first()
-    curso_periodo = db.query(CursoPeriodo).options(
-        joinedload(CursoPeriodo.curso),
-        joinedload(CursoPeriodo.periodo)
-    ).filter(CursoPeriodo.id == estudiante.curso_periodo_id).first()
 
     return {
         "id": estudiante.id,
-        "usuario_id": usuario.id,
-        "nombre": usuario.nombre,
-        "apellido": usuario.apellido,
-        "email": usuario.email,
         "direccion": estudiante.direccion,
-        "fecha_nacimiento": estudiante.fecha_nacimiento.isoformat() if estudiante.fecha_nacimiento else None,
-        "tutor_id": tutor.id if tutor else None,
-        "tutor_nombre": f"{tutor.nombre} {tutor.apellido}" if tutor else None,
-        "rol": usuario.rol.value if usuario.rol else None,
-        "curso_periodo_id": curso_periodo.id if curso_periodo else None,
-        "curso_periodo_nombre": f"{curso_periodo.curso.nombre} - {curso_periodo.periodo.descripcion}" if curso_periodo else None
+        "fecha_nacimiento": estudiante.fecha_nacimiento,
+        "usuario": usuario,
+        "tutor": tutor
     }
 
 
@@ -158,7 +140,6 @@ async def update_estudiante(
     # Cargar datos relacionados
     usuario = db.query(Usuario).filter(Usuario.id == estudiante.usuario_id).first()
     tutor = estudiante.tutor
-    curso_periodo = estudiante.curso_periodo
 
     return {
         "id": estudiante.id,
@@ -171,8 +152,6 @@ async def update_estudiante(
         "tutor_id": tutor.id if tutor else None,
         "tutor_nombre": f"{tutor.nombre} {tutor.apellido}" if tutor else None,
         "rol": usuario.rol.value if usuario.rol else None,
-        "curso_periodo_id": curso_periodo.id if curso_periodo else None,
-        "curso_periodo_nombre": f"{curso_periodo.curso.nombre} - {curso_periodo.periodo.descripcion}" if curso_periodo else None
     }
 
 @router.delete("/{estudiante_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -203,7 +182,7 @@ async def obtener_materias_estudiante(
     db: Session = Depends(get_db)
 ):
     """
-    Obtener todas las materias del curso actual de un estudiante.
+    Obtener todas las materias de un estudiante basado en sus asistencias, notas y participaciones.
     Un estudiante puede ver sus propias materias, un administrador puede ver las materias de cualquier estudiante.
     """
     # Buscar el estudiante
@@ -221,15 +200,38 @@ async def obtener_materias_estudiante(
             detail="No tienes permiso para ver estas materias"
         )
     
-    if not estudiante.curso_periodo_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="El estudiante no tiene un curso asignado"
-        )
+    # Obtener materias a través de asistencias, notas y participaciones
+    from ..models import Asistencia, Nota, Participaciones
     
-    # Obtener todas las materias asociadas al curso_periodo del estudiante
+    # Obtener curso_materia_ids desde asistencias
+    curso_materia_ids_from_asistencias = db.query(Asistencia.curso_materia_id)\
+        .filter(Asistencia.estudiante_id == estudiante_id)\
+        .distinct()\
+        .all()
+    
+    # Obtener curso_materia_ids desde notas
+    curso_materia_ids_from_notas = db.query(Nota.curso_materia_id)\
+        .filter(Nota.estudiante_id == estudiante_id)\
+        .distinct()\
+        .all()
+    
+    # Obtener curso_materia_ids desde participaciones
+    curso_materia_ids_from_participaciones = db.query(Participaciones.curso_materia_id)\
+        .filter(Participaciones.estudiante_id == estudiante_id)\
+        .distinct()\
+        .all()
+    
+    # Combinar todos los IDs de curso_materia (eliminar duplicados)
+    curso_materia_ids = set([cm_id[0] for cm_id in curso_materia_ids_from_asistencias] + 
+                           [cm_id[0] for cm_id in curso_materia_ids_from_notas] +
+                           [cm_id[0] for cm_id in curso_materia_ids_from_participaciones])
+    
+    if not curso_materia_ids:
+        return []
+    
+    # Obtener todas las materias asociadas al estudiante
     curso_materias = db.query(CursoMateria).filter(
-        CursoMateria.curso_periodo_id == estudiante.curso_periodo_id
+        CursoMateria.id.in_(curso_materia_ids)
     ).options(
         joinedload(CursoMateria.materia),
         joinedload(CursoMateria.profesor).joinedload(Profesor.usuario)

@@ -1,9 +1,9 @@
 # app/routers/tutores.py
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List
 from ..database import get_db
-from ..models import Tutor, Usuario, RolUsuario
+from ..models import Tutor, Usuario, RolUsuario, Estudiante
 from pydantic import BaseModel
 from ..dependencies.auth import get_current_user
 
@@ -158,4 +158,32 @@ async def delete_tutor(
     
     db.delete(tutor)
     db.commit()
-    return None 
+    return None
+
+@router.get("/estudiante/{estudiante_id}", response_model=TutorResponse)
+async def get_tutor_by_estudiante(
+    estudiante_id: int,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Obtener el tutor de un estudiante específico.
+    Accesible para todos los usuarios autenticados.
+    """
+    # Verificar que el estudiante existe
+    estudiante = db.query(Estudiante).filter(Estudiante.id == estudiante_id).first()
+    if not estudiante:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Estudiante no encontrado"
+        )
+    
+    # Obtener el tutor del estudiante
+    tutor = db.query(Tutor).filter(Tutor.id == estudiante.tutor_id).first()
+    if not tutor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tutor no encontrado para este estudiante"
+        )
+    
+    return tutor 

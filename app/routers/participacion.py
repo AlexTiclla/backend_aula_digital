@@ -68,6 +68,22 @@ def update_participacion(participacion_id: int, participacion: ParticipacionUpda
     db.refresh(db_participacion)
     return db_participacion
 
+
+@router.get("/estudiante/{estudiante_id}/curso_materia/{curso_materia_id}", response_model=List[Participacion])
+def read_participaciones_by_estudiante_and_curso_materia(
+    estudiante_id: int,
+    curso_materia_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    participaciones = db.query(Participaciones).filter(
+        Participaciones.estudiante_id == estudiante_id,
+        Participaciones.curso_materia_id == curso_materia_id
+    ).all()
+
+    return participaciones
+
+
 @router.delete("/{participacion_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_participacion(participacion_id: int, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
     db_participacion = db.query(Participaciones).filter(Participaciones.id == participacion_id).first()

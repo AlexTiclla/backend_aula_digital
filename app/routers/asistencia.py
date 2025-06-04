@@ -62,6 +62,20 @@ def update_asistencia(asistencia_id: int, asistencia: AsistenciaUpdate, db: Sess
     update_data = asistencia.dict(exclude_unset=True)
     for key, value in update_data.items():
         setattr(db_asistencia, key, value)
+    
+@router.get("/estudiante/{estudiante_id}/curso_materia/{curso_materia_id}", response_model=List[AsistenciaSchema])
+def read_asistencias_by_estudiante_and_curso_materia(
+    estudiante_id: int,
+    curso_materia_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    asistencias = db.query(Asistencia).filter(
+        Asistencia.estudiante_id == estudiante_id,
+        Asistencia.curso_materia_id == curso_materia_id
+    ).all()
+    
+    return asistencias        
         
     db.add(db_asistencia)
     db.commit()

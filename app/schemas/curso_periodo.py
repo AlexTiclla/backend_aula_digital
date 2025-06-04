@@ -1,6 +1,8 @@
 from pydantic import BaseModel
 from typing import Optional
 
+from app.schemas.periodo import PeriodoResponse
+
 class CursoPeriodoBase(BaseModel):
     curso_id: int
     periodo_id: int
@@ -31,3 +33,16 @@ class CursoPeriodoResponse(BaseModel):
 
     class Config:
         from_attributes = True
+        
+class CursoPeriodoResponse2(BaseModel):
+    id: int
+    curso_id: int
+    curso_nombre: Optional[str]  
+    periodo: PeriodoResponse
+    aula: str
+    turno: str
+    capacidad_actual: int
+    is_active: bool
+
+    class Config:
+        from_attributes = True        

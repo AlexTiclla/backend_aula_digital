@@ -45,7 +45,7 @@ async def get_estudiantes(
     })
     return result
 
-@router.get("/{estudiante_id}", response_model=EstudianteResponse)
+@router.get("/{estudiante_id}", response_model=EstudianteFlatResponse)
 async def get_estudiante(
     estudiante_id: int,
     current_user: Usuario = Depends(get_current_user),
@@ -126,7 +126,7 @@ async def create_estudiante(
     }
 
 
-@router.put("/{estudiante_id}", response_model=EstudianteResponse)
+@router.put("/{estudiante_id}", response_model=EstudianteFlatResponse)
 async def update_estudiante(
     estudiante_id: int,
     estudiante_data: EstudianteUpdate,

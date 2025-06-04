@@ -215,7 +215,7 @@ async def obtener_materias_estudiante(
         )
     
     # Verificar permisos
-    if current_user.id != estudiante.usuario_id and current_user.rol != RolUsuario.ADMINISTRATIVO:
+    if current_user.id != estudiante.usuario_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No tienes permiso para ver estas materias"

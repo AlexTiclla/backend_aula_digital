@@ -2,8 +2,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from typing import List
+
+from app.schemas.nota import DetalleMateriaEstudianteResponse
 from ..database import get_db
-from ..models import CursoPeriodo, Usuario, Estudiante, Tutor, RolUsuario, CursoMateria, Materia, Profesor
+from ..models import Asistencia, CursoPeriodo, Nota, Participaciones, Usuario, Estudiante, Tutor, RolUsuario, CursoMateria, Materia, Profesor
 from ..schemas.users import EstudianteFlatResponse, EstudianteResponse, EstudianteCreate, EstudianteUpdate
 from ..dependencies.auth import get_current_user
 
@@ -30,20 +32,19 @@ async def get_estudiantes(
         usuario = estudiante.usuario
         tutor = estudiante.tutor
         result.append({
-    "id": estudiante.id,
-    "usuario_id": usuario.id if usuario else None,
-    "nombre": usuario.nombre if usuario else "",
-    "apellido": usuario.apellido if usuario else "",
-    "email": usuario.email if usuario else "",
-    "direccion": estudiante.direccion if estudiante.direccion else "",
-    "fecha_nacimiento": estudiante.fecha_nacimiento.isoformat() if estudiante.fecha_nacimiento else "",
-    "tutor_id": tutor.id if tutor else None,
-    "tutor_nombre": f"{tutor.nombre} {tutor.apellido}" if tutor else None,
-    "rol": usuario.rol.value if usuario else None,
-    "curso_periodo_id": estudiante.curso_periodo.id if estudiante.curso_periodo else None,
-    "curso_periodo_nombre": f"{estudiante.curso_periodo.curso.nombre} - {estudiante.curso_periodo.periodo.anio}" if estudiante.curso_periodo else None,
-    })
+            "id": estudiante.id,
+            "usuario_id": usuario.id if usuario else None,
+            "nombre": usuario.nombre if usuario else "",
+            "apellido": usuario.apellido if usuario else "",
+            "email": usuario.email if usuario else "",
+            "direccion": estudiante.direccion if estudiante.direccion else "",
+            "fecha_nacimiento": estudiante.fecha_nacimiento.isoformat() if estudiante.fecha_nacimiento else "",
+            "tutor_id": tutor.id if tutor else None,
+            "tutor_nombre": f"{tutor.nombre} {tutor.apellido}" if tutor else None,
+            "rol": usuario.rol.value if usuario else None,
+        })
     return result
+
 
 @router.get("/{estudiante_id}", response_model=EstudianteFlatResponse)
 async def get_estudiante(
@@ -57,9 +58,7 @@ async def get_estudiante(
     """
     estudiante = db.query(Estudiante).options(
         joinedload(Estudiante.usuario),
-        joinedload(Estudiante.tutor),
-        joinedload(Estudiante.curso_periodo).joinedload(CursoPeriodo.curso),
-        joinedload(Estudiante.curso_periodo).joinedload(CursoPeriodo.periodo)
+        joinedload(Estudiante.tutor)
     ).filter(Estudiante.id == estudiante_id).first()
 
     if not estudiante:
@@ -67,9 +66,8 @@ async def get_estudiante(
 
     usuario = estudiante.usuario
     tutor = estudiante.tutor
-    curso_periodo = estudiante.curso_periodo
 
-    # Permitir acceso si el usuario es el mismo o si es administrador
+    # Permitir acceso si el usuario es el mismo o si es administrativo
     if current_user.id != estudiante.usuario_id and current_user.rol != RolUsuario.ADMINISTRATIVO:
         raise HTTPException(status_code=403, detail="No tienes permiso para ver este perfil")
 
@@ -84,9 +82,8 @@ async def get_estudiante(
         "tutor_id": tutor.id if tutor else None,
         "tutor_nombre": f"{tutor.nombre} {tutor.apellido}" if tutor else None,
         "rol": usuario.rol.value if usuario.rol else None,
-        "curso_periodo_id": curso_periodo.id if curso_periodo else None,
-        "curso_periodo_nombre": f"{curso_periodo.curso.nombre} - {curso_periodo.periodo.descripcion}" if curso_periodo else None
     }
+
 
 
 @router.post("/", response_model=EstudianteResponse)
@@ -95,20 +92,22 @@ async def create_estudiante(
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Validaciones previas (existencia de usuario y tutor) ya las tienes...
+    """
+    Crear un nuevo estudiante.
+    Solo accesible para usuarios con permisos administrativos.
+    """
 
-    # Crear el estudiante
-    estudiante = Estudiante(**estudiante_data.dict())
+    # Crear el estudiante (ya sin curso_periodo_id)
+    estudiante_dict = estudiante_data.dict()
+    estudiante_dict.pop("curso_periodo_id", None)  # eliminar si aún está en el esquema por error
+    estudiante = Estudiante(**estudiante_dict)
+
     db.add(estudiante)
     db.commit()
     db.refresh(estudiante)
 
     usuario = db.query(Usuario).filter(Usuario.id == estudiante.usuario_id).first()
     tutor = db.query(Tutor).filter(Tutor.id == estudiante.tutor_id).first()
-    curso_periodo = db.query(CursoPeriodo).options(
-        joinedload(CursoPeriodo.curso),
-        joinedload(CursoPeriodo.periodo)
-    ).filter(CursoPeriodo.id == estudiante.curso_periodo_id).first()
 
     return {
         "id": estudiante.id,
@@ -121,9 +120,8 @@ async def create_estudiante(
         "tutor_id": tutor.id if tutor else None,
         "tutor_nombre": f"{tutor.nombre} {tutor.apellido}" if tutor else None,
         "rol": usuario.rol.value if usuario.rol else None,
-        "curso_periodo_id": curso_periodo.id if curso_periodo else None,
-        "curso_periodo_nombre": f"{curso_periodo.curso.nombre} - {curso_periodo.periodo.descripcion}" if curso_periodo else None
     }
+
 
 
 @router.put("/{estudiante_id}", response_model=EstudianteFlatResponse)
@@ -141,7 +139,7 @@ async def update_estudiante(
     if current_user.id != estudiante.usuario_id and current_user.rol != RolUsuario.ADMINISTRATIVO:
         raise HTTPException(status_code=403, detail="No tienes permiso para actualizar este perfil")
 
-    # Validar tutor
+    # Validar tutor si se está actualizando
     if estudiante_data.tutor_id is not None:
         tutor = db.query(Tutor).filter(Tutor.id == estudiante_data.tutor_id).first()
         if not tutor:
@@ -149,6 +147,7 @@ async def update_estudiante(
 
     # Actualizar campos
     update_data = estudiante_data.dict(exclude_unset=True)
+    update_data.pop("curso_periodo_id", None)  # eliminar si llega por error
     for key, value in update_data.items():
         setattr(estudiante, key, value)
 
@@ -158,7 +157,6 @@ async def update_estudiante(
     # Cargar datos relacionados
     usuario = db.query(Usuario).filter(Usuario.id == estudiante.usuario_id).first()
     tutor = estudiante.tutor
-    curso_periodo = estudiante.curso_periodo
 
     return {
         "id": estudiante.id,
@@ -171,9 +169,8 @@ async def update_estudiante(
         "tutor_id": tutor.id if tutor else None,
         "tutor_nombre": f"{tutor.nombre} {tutor.apellido}" if tutor else None,
         "rol": usuario.rol.value if usuario.rol else None,
-        "curso_periodo_id": curso_periodo.id if curso_periodo else None,
-        "curso_periodo_nombre": f"{curso_periodo.curso.nombre} - {curso_periodo.periodo.descripcion}" if curso_periodo else None
     }
+
 
 @router.delete("/{estudiante_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_estudiante(
@@ -195,6 +192,81 @@ async def delete_estudiante(
     db.delete(estudiante)
     db.commit()
     return None
+
+@router.get("/{estudiante_id}/materias/{materia_id}/detalle", response_model=DetalleMateriaEstudianteResponse)
+async def obtener_detalle_materia_estudiante(
+    estudiante_id: int,
+    materia_id: int,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    estudiante = db.query(Estudiante).filter_by(id=estudiante_id).first()
+    if not estudiante:
+        raise HTTPException(status_code=404, detail="Estudiante no encontrado")
+
+    if current_user.id != estudiante.usuario_id and current_user.rol != RolUsuario.ADMINISTRATIVO:
+        raise HTTPException(status_code=403, detail="No tienes permiso para ver esta información")
+
+    # Obtener todas las asignaciones curso_materia para esta materia
+    curso_materias = db.query(CursoMateria).filter_by(materia_id=materia_id).options(
+        joinedload(CursoMateria.curso_periodo).joinedload(CursoPeriodo.periodo),
+        joinedload(CursoMateria.materia)
+    ).all()
+
+    registros = []
+
+    for cm in curso_materias:
+        # Filtrar registros por estudiante y curso_materia específico
+        nota = db.query(Nota).filter_by(estudiante_id=estudiante_id, curso_materia_id=cm.id).first()
+        asistencia = db.query(Asistencia).filter_by(estudiante_id=estudiante_id, curso_materia_id=cm.id).first()
+        participacion = db.query(Participaciones).filter_by(estudiante_id=estudiante_id, curso_materia_id=cm.id).first()
+
+        # Si no hay ningún registro, lo ignoramos
+        if not any([nota, asistencia, participacion]):
+            continue
+
+        periodo = cm.curso_periodo.periodo
+
+        registros.append({
+            "curso_materia_id": cm.id,
+            "periodo": {
+                "id": periodo.id,
+                "bimestre": periodo.bimestre,
+                "anio": periodo.anio,
+                "descripcion": periodo.descripcion,
+                "fecha_inicio": periodo.fecha_inicio,
+                "fecha_fin": periodo.fecha_fin
+            },
+            "nota": {
+                "valor": nota.valor,
+                "fecha": nota.fecha,
+                "descripcion": nota.descripcion,
+                "rendimiento": nota.rendimiento
+            } if nota else None,
+            "asistencia": {
+                "valor": asistencia.valor,
+                "fecha": asistencia.fecha
+            } if asistencia else None,
+            "participacion": {
+                "participacion_clase": participacion.participacion_clase,
+                "observacion": participacion.observacion,
+                "fecha": participacion.fecha
+            } if participacion else None
+        })
+
+    if not registros:
+        return DetalleMateriaEstudianteResponse(
+            materia_id=materia_id,
+            materia_nombre="",
+            registros=[]
+        )
+
+    return DetalleMateriaEstudianteResponse(
+        materia_id=materia_id,
+        materia_nombre=curso_materias[0].materia.nombre,
+        registros=registros
+    )
+
 
 @router.get("/{estudiante_id}/materias")
 async def obtener_materias_estudiante(

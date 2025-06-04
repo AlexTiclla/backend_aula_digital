@@ -3,6 +3,7 @@ from datetime import date
 from typing import Optional
 
 class PeriodoBase(BaseModel):
+    id: int
     bimestre: int = Field(..., ge=1, le=4)  # Limitar a 1-4
     anio: int
     fecha_inicio: date

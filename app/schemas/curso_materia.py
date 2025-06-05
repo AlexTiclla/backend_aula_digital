@@ -26,3 +26,11 @@ class CursoMateriaResponse(CursoMateriaBase):
 
     class Config:
         from_attributes = True
+
+class CursoMateriaPorPeriodoResponse(BaseModel):
+    id: int
+    nombre_materia: str
+    curso_periodo_id: int
+
+    class Config:
+        orm_mode = True

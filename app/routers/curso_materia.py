@@ -1,8 +1,11 @@
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+
+from app.schemas.users import EstudianteResponse
 from ..database import get_db
-from ..models import CursoMateria
-from ..schemas.curso_materia import CursoMateriaCreate, CursoMateriaUpdate, CursoMateriaResponse
+from ..models import CursoMateria, CursoPeriodo, Estudiante, Materia, Pertenece
+from ..schemas.curso_materia import CursoMateriaCreate, CursoMateriaPorPeriodoResponse, CursoMateriaUpdate, CursoMateriaResponse
 from ..dependencies.auth import get_current_admin
 
 router = APIRouter(prefix="/api/v1/curso_materias", tags=["curso_materias"])
@@ -26,6 +29,46 @@ async def obtener_curso_materia(id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="No encontrado")
     return obj
 
+@router.get("/curso_materia/{id}/estudiantes", response_model=List[EstudianteResponse])
+async def obtener_estudiantes_por_curso_materia(id: int, db: Session = Depends(get_db)):
+    """
+    Obtener todos los estudiantes inscritos en un curso_materia dado su ID.
+    """
+    inscripciones = db.query(Pertenece).filter(Pertenece.curso_materia_id == id).all()
+
+    if not inscripciones:
+        return []
+
+    estudiante_ids = [insc.estudiante_id for insc in inscripciones]
+
+    estudiantes = db.query(Estudiante).filter(Estudiante.id.in_(estudiante_ids)).options(
+        joinedload(Estudiante.usuario),
+        joinedload(Estudiante.tutor)
+    ).all()
+
+    return estudiantes
+
+
+@router.get("/por_periodo/{periodo_id}", response_model=list[CursoMateriaPorPeriodoResponse])
+def get_curso_materias_por_periodo(periodo_id: int, db: Session = Depends(get_db)):
+    curso_materias = (
+        db.query(CursoMateria)
+        .join(CursoPeriodo)
+        .join(Materia)
+        .filter(CursoPeriodo.periodo_id == periodo_id)
+        .all()
+    )
+    
+    return [
+        {
+            "id": cm.id,
+            "nombre_materia": cm.materia.nombre,
+            "curso_periodo_id": cm.curso_periodo_id
+        }
+        for cm in curso_materias
+    ]
+
+
 @router.put("/{id}", response_model=CursoMateriaResponse)
 async def actualizar_curso_materia(id: int, data: CursoMateriaUpdate, db: Session = Depends(get_db), current_user=Depends(get_current_admin)):
     obj = db.query(CursoMateria).filter(CursoMateria.id == id).first()
@@ -45,3 +88,6 @@ async def eliminar_curso_materia(id: int, db: Session = Depends(get_db), current
     db.delete(obj)
     db.commit()
     return {"message": "Eliminado"}
+
+
+

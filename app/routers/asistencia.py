@@ -3,8 +3,8 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from ..database import get_db
-from ..models import Asistencia, Estudiante, CursoMateria
-from ..schemas.asistencia import Asistencia as AsistenciaSchema, AsistenciaCreate, AsistenciaUpdate
+from ..models import Asistencia, CursoPeriodo, Estudiante, CursoMateria
+from ..schemas.asistencia import Asistencia as AsistenciaSchema, AsistenciaConPeriodoResponse, AsistenciaCreate, AsistenciaUpdate
 from ..dependencies.auth import get_current_user
 
 router = APIRouter(
@@ -76,11 +76,53 @@ def read_asistencias_by_estudiante_and_curso_materia(
     ).all()
     
     return asistencias        
-        
-    db.add(db_asistencia)
-    db.commit()
-    db.refresh(db_asistencia)
-    return db_asistencia
+
+from sqlalchemy.orm import joinedload
+
+@router.get("/estudiante/{estudiante_id}/materia/{materia_id}/asistencias", response_model=List[AsistenciaConPeriodoResponse])
+def read_asistencias_by_materia_with_periodo(
+    estudiante_id: int,
+    materia_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    estudiante = db.query(Estudiante).filter_by(id=estudiante_id).first()
+    if not estudiante:
+        raise HTTPException(status_code=404, detail="Estudiante no encontrado")
+
+    curso_materia_ids = db.query(CursoMateria.id).filter_by(materia_id=materia_id).all()
+    curso_materia_ids = [cm[0] for cm in curso_materia_ids]
+
+    if not curso_materia_ids:
+        return []
+
+    asistencias = db.query(Asistencia).filter(
+        Asistencia.estudiante_id == estudiante_id,
+        Asistencia.curso_materia_id.in_(curso_materia_ids)
+    ).options(
+        joinedload(Asistencia.curso_materia)
+        .joinedload(CursoMateria.curso_periodo)
+        .joinedload(CursoPeriodo.periodo)
+    ).all()
+
+    resultado = []
+    for a in asistencias:
+        periodo = a.curso_materia.curso_periodo.periodo
+        resultado.append({
+            "id": a.id,
+            "estudiante_id": a.estudiante_id,
+            "curso_materia_id": a.curso_materia_id,
+            "valor": a.valor,
+            "fecha": a.fecha,
+            "periodo": {
+                "bimestre": periodo.bimestre,
+                "anio": periodo.anio,
+                "descripcion": periodo.descripcion
+            }
+        })
+
+    return resultado
+
 
 @router.delete("/{asistencia_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_asistencia(asistencia_id: int, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
@@ -91,3 +133,4 @@ def delete_asistencia(asistencia_id: int, db: Session = Depends(get_db), current
     db.delete(db_asistencia)
     db.commit()
     return None
+

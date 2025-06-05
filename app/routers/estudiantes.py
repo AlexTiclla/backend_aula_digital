@@ -5,7 +5,7 @@ from typing import List
 
 from app.schemas.nota import DetalleMateriaEstudianteResponse
 from ..database import get_db
-from ..models import Asistencia, CursoPeriodo, Nota, Participaciones, Usuario, Estudiante, Tutor, RolUsuario, CursoMateria, Materia, Profesor
+from ..models import Asistencia, CursoPeriodo, Nota, Participaciones, Pertenece, Usuario, Estudiante, Tutor, RolUsuario, CursoMateria, Materia, Profesor
 from ..schemas.users import EstudianteFlatResponse, EstudianteResponse, EstudianteCreate, EstudianteUpdate
 from ..dependencies.auth import get_current_user
 
@@ -331,3 +331,59 @@ async def obtener_materias_estudiante(
         })
     
     return materias
+
+
+@router.get("/estudiantes/{estudiante_id}/materias2")
+async def obtener_materias_sin_repetir(
+    estudiante_id: int,
+    db: Session = Depends(get_db)
+):
+    estudiante = db.query(Estudiante).filter_by(id=estudiante_id).first()
+    if not estudiante:
+        raise HTTPException(status_code=404, detail="Estudiante no encontrado")
+
+    pertenece = db.query(Pertenece).filter_by(estudiante_id=estudiante_id).all()
+    if not pertenece:
+        return []
+
+    curso_materia_ids = [p.curso_materia_id for p in pertenece]
+
+    curso_materias = db.query(CursoMateria).filter(
+        CursoMateria.id.in_(curso_materia_ids)
+    ).options(
+        joinedload(CursoMateria.materia),
+        joinedload(CursoMateria.profesor).joinedload(Profesor.usuario)
+    ).all()
+
+    materias_vistas = set()
+    resultado = []
+
+    for cm in curso_materias:
+        materia_id = cm.materia.id
+        if materia_id in materias_vistas:
+            continue  # saltar duplicados
+
+        materias_vistas.add(materia_id)
+
+        resultado.append({
+            "id": cm.id,  # curso_materia_id de la primera inscripción encontrada
+            "materia": {
+                "id": cm.materia.id,
+                "nombre": cm.materia.nombre,
+                "descripcion": cm.materia.descripcion,
+                "area_conocimiento": cm.materia.area_conocimiento,
+                "horas_semanales": cm.materia.horas_semanales
+            },
+            "profesor": {
+                "id": cm.profesor.id,
+                "nombre": cm.profesor.usuario.nombre,
+                "apellido": cm.profesor.usuario.apellido,
+                "especialidad": cm.profesor.especialidad
+            },
+            "horario": cm.horario,
+            "aula": cm.aula,
+            "modalidad": cm.modalidad
+        })
+
+    return resultado
+

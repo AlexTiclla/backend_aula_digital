@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List
 
 from ..database import get_db
-from ..models import Participaciones, Estudiante, CursoMateria
-from ..schemas.participacion import Participacion, ParticipacionCreate, ParticipacionUpdate
+from ..models import CursoPeriodo, Participaciones, Estudiante, CursoMateria
+from ..schemas.participacion import Participacion, ParticipacionConPeriodoResponse, ParticipacionCreate, ParticipacionResponse, ParticipacionUpdate
 from ..dependencies.auth import get_current_user
 
 router = APIRouter(
@@ -82,6 +82,56 @@ def read_participaciones_by_estudiante_and_curso_materia(
     ).all()
 
     return participaciones
+
+@router.get(
+    "/estudiante/{estudiante_id}/materia/{materia_id}/participaciones",
+    response_model=List[ParticipacionConPeriodoResponse]
+)
+def read_participaciones_by_materia(
+    estudiante_id: int,
+    materia_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    estudiante = db.query(Estudiante).filter_by(id=estudiante_id).first()
+    if not estudiante:
+        raise HTTPException(status_code=404, detail="Estudiante no encontrado")
+
+    curso_materia_ids = db.query(CursoMateria.id).filter_by(materia_id=materia_id).all()
+    curso_materia_ids = [cm[0] for cm in curso_materia_ids]
+
+    if not curso_materia_ids:
+        return []
+
+    participaciones = db.query(Participaciones).filter(
+        Participaciones.estudiante_id == estudiante_id,
+        Participaciones.curso_materia_id.in_(curso_materia_ids)
+    ).options(
+        joinedload(Participaciones.curso_materia)
+        .joinedload(CursoMateria.curso_periodo)
+        .joinedload(CursoPeriodo.periodo)
+    ).all()
+
+    resultado = []
+    for p in participaciones:
+        periodo = p.curso_materia.curso_periodo.periodo
+        resultado.append({
+            "id": p.id,
+            "curso_materia_id": p.curso_materia_id,
+            "estudiante_id": p.estudiante_id,
+            "participacion_clase": p.participacion_clase,
+            "fecha": p.fecha,
+            "observacion": p.observacion,
+            "periodo": {
+                "bimestre": periodo.bimestre,
+                "anio": periodo.anio,
+                "descripcion": periodo.descripcion
+            }
+        })
+
+    return resultado
+
+
 
 
 @router.delete("/{participacion_id}", status_code=status.HTTP_204_NO_CONTENT)

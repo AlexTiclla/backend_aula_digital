@@ -24,6 +24,7 @@ class ProfesorResponse(BaseModel):
         
   
 
+
 class EstudianteCreate(BaseModel):
     usuario_id: int
     tutor_id: int
@@ -70,7 +71,7 @@ class EstudianteResponse(BaseModel):
     tutor: Optional[TutorResponse]
 
     class Config:
-        from_attributes = True      
+        from_attributes = True   
         
 class EstudianteFlatResponse(BaseModel):
     id: int

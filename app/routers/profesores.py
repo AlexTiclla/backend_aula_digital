@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session,joinedload
 from typing import List
 
 from ..database import get_db
-from ..models import Usuario, Profesor, RolUsuario
+from ..models import Usuario, Profesor, RolUsuario, Estudiante, CursoMateria, Asistencia, Nota, Participaciones
 from ..schemas.users import ProfesorResponse, ProfesorCreate, ProfesorResponseWithUsuario, ProfesorUpdate
 from ..dependencies.auth import get_current_user
 
@@ -158,3 +158,76 @@ async def delete_profesor(
     db.delete(profesor)
     db.commit()
     return None
+
+@router.get("/estudiante/{estudiante_id}", response_model=List[ProfesorResponse])
+async def get_profesores_by_estudiante(
+    estudiante_id: int,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Obtener todos los profesores que imparten materias a un estudiante específico.
+    Se obtienen a través de las relaciones en asistencias, notas y participaciones.
+    """
+    # Verificar que el estudiante existe
+    estudiante = db.query(Estudiante).filter(Estudiante.id == estudiante_id).first()
+    if not estudiante:
+        raise HTTPException(status_code=404, detail="Estudiante no encontrado")
+    
+    # Obtener curso_materia_ids desde asistencias
+    curso_materia_ids_from_asistencias = db.query(Asistencia.curso_materia_id)\
+        .filter(Asistencia.estudiante_id == estudiante_id)\
+        .distinct()\
+        .all()
+    
+    # Obtener curso_materia_ids desde notas
+    curso_materia_ids_from_notas = db.query(Nota.curso_materia_id)\
+        .filter(Nota.estudiante_id == estudiante_id)\
+        .distinct()\
+        .all()
+    
+    # Obtener curso_materia_ids desde participaciones
+    curso_materia_ids_from_participaciones = db.query(Participaciones.curso_materia_id)\
+        .filter(Participaciones.estudiante_id == estudiante_id)\
+        .distinct()\
+        .all()
+    
+    # Combinar todos los IDs de curso_materia (eliminar duplicados)
+    curso_materia_ids = set([cm_id[0] for cm_id in curso_materia_ids_from_asistencias] + 
+                           [cm_id[0] for cm_id in curso_materia_ids_from_notas] +
+                           [cm_id[0] for cm_id in curso_materia_ids_from_participaciones])
+    
+    if not curso_materia_ids:
+        return []
+    
+    # Obtener profesores_ids desde curso_materias
+    profesor_ids = db.query(CursoMateria.profesor_id)\
+        .filter(CursoMateria.id.in_(curso_materia_ids))\
+        .distinct()\
+        .all()
+    
+    profesor_ids_list = [p_id[0] for p_id in profesor_ids]
+    
+    # Obtener información de profesores
+    profesores = db.query(Profesor)\
+        .options(joinedload(Profesor.usuario))\
+        .filter(Profesor.id.in_(profesor_ids_list))\
+        .all()
+    
+    result = []
+    for profesor in profesores:
+        usuario = profesor.usuario
+        if usuario:
+            result.append({
+                "id": profesor.id,
+                "usuario_id": usuario.id,
+                "nombre": usuario.nombre,
+                "apellido": usuario.apellido,
+                "email": usuario.email,
+                "telefono": profesor.telefono,
+                "carnet_identidad": profesor.carnet_identidad,
+                "especialidad": profesor.especialidad,
+                "nivel_academico": profesor.nivel_academico
+            })
+    
+    return result

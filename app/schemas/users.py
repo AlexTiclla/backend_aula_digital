@@ -29,7 +29,6 @@ class EstudianteCreate(BaseModel):
     tutor_id: int
     direccion: Optional[str] = None
     fecha_nacimiento: Optional[datetime] = None
-    curso_periodo_id: int  # ID del curso_periodo al que pertenece el estudiante
 
 class EstudianteUpdate(BaseModel):
     tutor_id: Optional[int] = None
@@ -67,8 +66,6 @@ class EstudianteResponse(BaseModel):
     id: int
     direccion: Optional[str]
     fecha_nacimiento: Optional[datetime]
-    curso_periodo_id: Optional[int]
-    curso_periodo_nombre: Optional[str]
     usuario: UsuarioResponse
     tutor: Optional[TutorResponse]
 
@@ -86,8 +83,6 @@ class EstudianteFlatResponse(BaseModel):
     tutor_id: Optional[int]
     tutor_nombre: Optional[str]
     rol: Optional[str]
-    curso_periodo_id: Optional[int]
-    curso_periodo_nombre: Optional[str]          
 
 class ProfesorResponseWithUsuario(BaseModel):
     id: int

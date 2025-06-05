@@ -8,7 +8,7 @@ from ..schemas.participacion import Participacion, ParticipacionCreate, Particip
 from ..dependencies.auth import get_current_user
 
 router = APIRouter(
-    prefix="/participaciones",
+    prefix="/api/v1/participaciones",
     tags=["participaciones"],
     responses={404: {"description": "No encontrado"}},
 )

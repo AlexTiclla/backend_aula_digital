@@ -8,7 +8,7 @@ from ..schemas.asistencia import Asistencia as AsistenciaSchema, AsistenciaCreat
 from ..dependencies.auth import get_current_user
 
 router = APIRouter(
-    prefix="/asistencias",
+    prefix="/api/v1/asistencias",
     tags=["asistencias"],
     responses={404: {"description": "No encontrado"}},
 )

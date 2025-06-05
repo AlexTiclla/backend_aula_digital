@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 
-from .routers import auth, estudiantes, profesores, usuarios, tutores, curso,periodo,curso_periodo,materia,curso_materia, nota, participacion, asistencia
+from .routers import auth, estudiantes, profesores, usuarios, tutores, curso,periodo,curso_periodo,materia,curso_materia, nota, participacion, asistencia, prediccion
 from .config import settings
 
 
@@ -57,7 +57,7 @@ def custom_openapi():
 
 app.openapi = custom_openapi
 
-# Incluir los routers
+# Incluir los routers 
 app.include_router(auth.router)
 app.include_router(usuarios.router)
 app.include_router(estudiantes.router)
@@ -71,3 +71,5 @@ app.include_router(curso_materia.router)
 app.include_router(nota.router)
 app.include_router(participacion.router)
 app.include_router(asistencia.router)
+app.include_router(prediccion.router)
+

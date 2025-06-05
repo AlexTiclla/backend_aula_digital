@@ -9,3 +9,7 @@ python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
 email-validator>=2.1.0
 python-multipart>=0.0.5
+# Dependencias para predicción con machine learning
+numpy==1.26.3
+pandas==2.1.4
+scikit-learn==1.4.0

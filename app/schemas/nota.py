@@ -27,7 +27,7 @@ class NotaResponse(NotaBase):
     fecha: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class NotaDetalleResponse(BaseModel):

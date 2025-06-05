@@ -2,8 +2,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from typing import List
+
+from app.schemas.nota import DetalleMateriaEstudianteResponse
 from ..database import get_db
-from ..models import Usuario, Estudiante, Tutor, RolUsuario, CursoMateria, Materia, Profesor
+from ..models import Asistencia, CursoPeriodo, Nota, Participaciones, Pertenece, Usuario, Estudiante, Tutor, RolUsuario, CursoMateria, Materia, Profesor
 from ..schemas.users import EstudianteFlatResponse, EstudianteResponse, EstudianteCreate, EstudianteUpdate
 from ..dependencies.auth import get_current_user
 
@@ -43,6 +45,7 @@ async def get_estudiantes(
         })
     return result
 
+
 @router.get("/{estudiante_id}", response_model=EstudianteFlatResponse)
 async def get_estudiante(
     estudiante_id: int,
@@ -64,7 +67,7 @@ async def get_estudiante(
     usuario = estudiante.usuario
     tutor = estudiante.tutor
 
-    # Permitir acceso si el usuario es el mismo o si es administrador
+    # Permitir acceso si el usuario es el mismo o si es administrativo
     if current_user.id != estudiante.usuario_id and current_user.rol != RolUsuario.ADMINISTRATIVO:
         raise HTTPException(status_code=403, detail="No tienes permiso para ver este perfil")
 
@@ -82,16 +85,23 @@ async def get_estudiante(
     }
 
 
+
 @router.post("/", response_model=EstudianteResponse)
 async def create_estudiante(
     estudiante_data: EstudianteCreate,
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Validaciones previas (existencia de usuario y tutor) ya las tienes...
+    """
+    Crear un nuevo estudiante.
+    Solo accesible para usuarios con permisos administrativos.
+    """
 
-    # Crear el estudiante
-    estudiante = Estudiante(**estudiante_data.dict())
+    # Crear el estudiante (ya sin curso_periodo_id)
+    estudiante_dict = estudiante_data.dict()
+    estudiante_dict.pop("curso_periodo_id", None)  # eliminar si aún está en el esquema por error
+    estudiante = Estudiante(**estudiante_dict)
+
     db.add(estudiante)
     db.commit()
     db.refresh(estudiante)
@@ -102,10 +112,12 @@ async def create_estudiante(
     return {
         "id": estudiante.id,
         "direccion": estudiante.direccion,
-        "fecha_nacimiento": estudiante.fecha_nacimiento,
-        "usuario": usuario,
-        "tutor": tutor
+        "fecha_nacimiento": estudiante.fecha_nacimiento.isoformat() if estudiante.fecha_nacimiento else None,
+        "tutor_id": tutor.id if tutor else None,
+        "tutor_nombre": f"{tutor.nombre} {tutor.apellido}" if tutor else None,
+        "rol": usuario.rol.value if usuario.rol else None,
     }
+
 
 
 @router.put("/{estudiante_id}", response_model=EstudianteFlatResponse)
@@ -123,7 +135,7 @@ async def update_estudiante(
     if current_user.id != estudiante.usuario_id and current_user.rol != RolUsuario.ADMINISTRATIVO:
         raise HTTPException(status_code=403, detail="No tienes permiso para actualizar este perfil")
 
-    # Validar tutor
+    # Validar tutor si se está actualizando
     if estudiante_data.tutor_id is not None:
         tutor = db.query(Tutor).filter(Tutor.id == estudiante_data.tutor_id).first()
         if not tutor:
@@ -131,6 +143,7 @@ async def update_estudiante(
 
     # Actualizar campos
     update_data = estudiante_data.dict(exclude_unset=True)
+    update_data.pop("curso_periodo_id", None)  # eliminar si llega por error
     for key, value in update_data.items():
         setattr(estudiante, key, value)
 
@@ -154,6 +167,7 @@ async def update_estudiante(
         "rol": usuario.rol.value if usuario.rol else None,
     }
 
+
 @router.delete("/{estudiante_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_estudiante(
     estudiante_id: int,
@@ -174,6 +188,81 @@ async def delete_estudiante(
     db.delete(estudiante)
     db.commit()
     return None
+
+@router.get("/{estudiante_id}/materias/{materia_id}/detalle", response_model=DetalleMateriaEstudianteResponse)
+async def obtener_detalle_materia_estudiante(
+    estudiante_id: int,
+    materia_id: int,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    estudiante = db.query(Estudiante).filter_by(id=estudiante_id).first()
+    if not estudiante:
+        raise HTTPException(status_code=404, detail="Estudiante no encontrado")
+
+    if current_user.id != estudiante.usuario_id and current_user.rol != RolUsuario.ADMINISTRATIVO:
+        raise HTTPException(status_code=403, detail="No tienes permiso para ver esta información")
+
+    # Obtener todas las asignaciones curso_materia para esta materia
+    curso_materias = db.query(CursoMateria).filter_by(materia_id=materia_id).options(
+        joinedload(CursoMateria.curso_periodo).joinedload(CursoPeriodo.periodo),
+        joinedload(CursoMateria.materia)
+    ).all()
+
+    registros = []
+
+    for cm in curso_materias:
+        # Filtrar registros por estudiante y curso_materia específico
+        nota = db.query(Nota).filter_by(estudiante_id=estudiante_id, curso_materia_id=cm.id).first()
+        asistencia = db.query(Asistencia).filter_by(estudiante_id=estudiante_id, curso_materia_id=cm.id).first()
+        participacion = db.query(Participaciones).filter_by(estudiante_id=estudiante_id, curso_materia_id=cm.id).first()
+
+        # Si no hay ningún registro, lo ignoramos
+        if not any([nota, asistencia, participacion]):
+            continue
+
+        periodo = cm.curso_periodo.periodo
+
+        registros.append({
+            "curso_materia_id": cm.id,
+            "periodo": {
+                "id": periodo.id,
+                "bimestre": periodo.bimestre,
+                "anio": periodo.anio,
+                "descripcion": periodo.descripcion,
+                "fecha_inicio": periodo.fecha_inicio,
+                "fecha_fin": periodo.fecha_fin
+            },
+            "nota": {
+                "valor": nota.valor,
+                "fecha": nota.fecha,
+                "descripcion": nota.descripcion,
+                "rendimiento": nota.rendimiento
+            } if nota else None,
+            "asistencia": {
+                "valor": asistencia.valor,
+                "fecha": asistencia.fecha
+            } if asistencia else None,
+            "participacion": {
+                "participacion_clase": participacion.participacion_clase,
+                "observacion": participacion.observacion,
+                "fecha": participacion.fecha
+            } if participacion else None
+        })
+
+    if not registros:
+        return DetalleMateriaEstudianteResponse(
+            materia_id=materia_id,
+            materia_nombre="",
+            registros=[]
+        )
+
+    return DetalleMateriaEstudianteResponse(
+        materia_id=materia_id,
+        materia_nombre=curso_materias[0].materia.nombre,
+        registros=registros
+    )
+
 
 @router.get("/{estudiante_id}/materias")
 async def obtener_materias_estudiante(
@@ -261,3 +350,59 @@ async def obtener_materias_estudiante(
         })
     
     return materias
+
+
+@router.get("/estudiantes/{estudiante_id}/materias2")
+async def obtener_materias_sin_repetir(
+    estudiante_id: int,
+    db: Session = Depends(get_db)
+):
+    estudiante = db.query(Estudiante).filter_by(id=estudiante_id).first()
+    if not estudiante:
+        raise HTTPException(status_code=404, detail="Estudiante no encontrado")
+
+    pertenece = db.query(Pertenece).filter_by(estudiante_id=estudiante_id).all()
+    if not pertenece:
+        return []
+
+    curso_materia_ids = [p.curso_materia_id for p in pertenece]
+
+    curso_materias = db.query(CursoMateria).filter(
+        CursoMateria.id.in_(curso_materia_ids)
+    ).options(
+        joinedload(CursoMateria.materia),
+        joinedload(CursoMateria.profesor).joinedload(Profesor.usuario)
+    ).all()
+
+    materias_vistas = set()
+    resultado = []
+
+    for cm in curso_materias:
+        materia_id = cm.materia.id
+        if materia_id in materias_vistas:
+            continue  # saltar duplicados
+
+        materias_vistas.add(materia_id)
+
+        resultado.append({
+            "id": cm.id,  # curso_materia_id de la primera inscripción encontrada
+            "materia": {
+                "id": cm.materia.id,
+                "nombre": cm.materia.nombre,
+                "descripcion": cm.materia.descripcion,
+                "area_conocimiento": cm.materia.area_conocimiento,
+                "horas_semanales": cm.materia.horas_semanales
+            },
+            "profesor": {
+                "id": cm.profesor.id,
+                "nombre": cm.profesor.usuario.nombre,
+                "apellido": cm.profesor.usuario.apellido,
+                "especialidad": cm.profesor.especialidad
+            },
+            "horario": cm.horario,
+            "aula": cm.aula,
+            "modalidad": cm.modalidad
+        })
+
+    return resultado
+

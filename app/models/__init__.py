@@ -48,16 +48,20 @@ class Estudiante(Base):
     id = Column(Integer, primary_key=True)
     usuario_id = Column(Integer, ForeignKey('usuarios.id'), unique=True, nullable=False)
     tutor_id = Column(Integer, ForeignKey('tutores.id'), nullable=False)  # Aquí está la clave foránea
+
     direccion = Column(String)
     fecha_nacimiento = Column(DateTime)
-
     usuario = relationship("Usuario", back_populates="estudiante")
     tutor = relationship("Tutor", back_populates="estudiantes")
+    pertenencias = relationship("Pertenece", back_populates="estudiante")
 
     
+
     @property
-    def tutor_nombre(self):
-     return self.tutor.nombre if self.tutor else None
+    def curso_periodo_nombre(self):
+        return self.curso_periodo.curso.nombre if self.curso_periodo and self.curso_periodo.curso else None
+
+
 
 class Profesor(Base):
     __tablename__ = "profesores"
@@ -138,6 +142,7 @@ class CursoMateria(Base):
     curso_periodo = relationship("CursoPeriodo", back_populates="curso_materias")
     materia = relationship("Materia", back_populates="curso_materias")
     profesor = relationship(Profesor, back_populates="curso_materias")
+    estudiantes_inscritos = relationship("Pertenece", back_populates="curso_materia")
 
     
 
@@ -189,3 +194,17 @@ class Nota(Base):
     # Relaciones
     estudiante = relationship("Estudiante")
     curso_materia = relationship("CursoMateria")
+
+
+
+class Pertenece(Base):
+    __tablename__ = "pertenece"
+    
+    id = Column(Integer, primary_key=True)
+    estudiante_id = Column(Integer, ForeignKey("estudiantes.id"), nullable=False)
+    curso_materia_id = Column(Integer, ForeignKey("curso_materia.id"), nullable=False)
+    fecha_inscripcion = Column(DateTime, default=datetime.utcnow)
+
+    # Relaciones
+    estudiante = relationship("Estudiante", back_populates="pertenencias")
+    curso_materia = relationship("CursoMateria", back_populates="estudiantes_inscritos")    

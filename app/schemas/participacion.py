@@ -22,3 +22,35 @@ class Participacion(ParticipacionBase):
     
     class Config:
         from_attributes = True
+
+class ParticipacionResponse(BaseModel):
+    id: int
+    curso_materia_id: int
+    estudiante_id: int
+    participacion_clase: Optional[str]
+    fecha: datetime
+    observacion: Optional[str]
+
+    class Config:
+        from_attributes = True
+
+        
+class PeriodoData(BaseModel):
+    bimestre: int
+    anio: int
+    descripcion: Optional[str]
+
+    class Config:
+        orm_mode = True
+
+class ParticipacionConPeriodoResponse(BaseModel):
+    id: int
+    curso_materia_id: int
+    estudiante_id: int
+    participacion_clase: Optional[str]
+    fecha: datetime
+    observacion: Optional[str]
+    periodo: PeriodoData
+
+    class Config:
+        orm_mode = True        

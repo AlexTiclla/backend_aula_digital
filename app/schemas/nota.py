@@ -93,7 +93,45 @@ class CursoMateriaBasica(BaseModel):
 class NotaConPeriodoResponse(BaseModel):
     periodo: PeriodoResponse
     curso_materia: CursoMateriaBasica
-    notas: List[NotaDetalleResponse]                
+    notas: List[NotaDetalleResponse]   
+
+class PeriodoItem(BaseModel):
+    id: int
+    bimestre: int
+    anio: int
+    descripcion: Optional[str]
+    fecha_inicio: datetime
+    fecha_fin: datetime
+        
+class NotaItem(BaseModel):
+    valor: int
+    fecha: datetime
+    descripcion: Optional[str]
+    rendimiento: Optional[str]
+
+
+class AsistenciaItem(BaseModel):
+    valor: bool
+    fecha: datetime
+
+
+class ParticipacionItem(BaseModel):
+    participacion_clase: Optional[str]
+    observacion: Optional[str]
+    fecha: datetime
+
+class CursoMateriaPeriodoItem(BaseModel):
+    curso_materia_id: int
+    periodo: PeriodoItem
+
+    nota: Optional[NotaItem]
+    asistencia: Optional[AsistenciaItem]
+    participacion: Optional[ParticipacionItem]
+    
+class DetalleMateriaEstudianteResponse(BaseModel):
+    materia_id: int
+    materia_nombre: str
+    registros: List[CursoMateriaPeriodoItem]             
     
     
     

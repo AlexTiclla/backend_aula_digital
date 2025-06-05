@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.schemas.users import EstudianteResponse
 from ..database import get_db
 from ..models import CursoMateria, CursoPeriodo, Estudiante, Materia, Pertenece
-from ..schemas.curso_materia import CursoMateriaCreate, CursoMateriaPorPeriodoResponse, CursoMateriaUpdate, CursoMateriaResponse
+from ..schemas.curso_materia import CursoMateriaCreate, CursoMateriaEstudiantesResumen, CursoMateriaPorPeriodoResponse, CursoMateriaUpdate, CursoMateriaResponse
 from ..dependencies.auth import get_current_admin
 
 router = APIRouter(prefix="/api/v1/curso_materias", tags=["curso_materias"])
@@ -22,12 +22,30 @@ async def crear_curso_materia(data: CursoMateriaCreate, db: Session = Depends(ge
 async def listar_curso_materias(db: Session = Depends(get_db)):
     return db.query(CursoMateria).all()
 
+@router.get("/resumen-estudiantes", response_model=List[CursoMateriaEstudiantesResumen])
+def resumen_estudiantes_por_curso_materia(db: Session = Depends(get_db)):
+    curso_materias = db.query(CursoMateria).all()
+
+    resumen = []
+    for cm in curso_materias:
+        cantidad = db.query(Pertenece).filter(Pertenece.curso_materia_id == cm.id).count()
+        nombre_materia = cm.materia.nombre if cm.materia else f"ID {cm.materia_id}"
+        resumen.append({
+            "curso_materia_id": cm.id,
+            "nombre_materia": nombre_materia,
+            "cantidad_estudiantes": cantidad
+        })
+
+    return resumen
+
 @router.get("/{id}", response_model=CursoMateriaResponse)
 async def obtener_curso_materia(id: int, db: Session = Depends(get_db)):
     obj = db.query(CursoMateria).filter(CursoMateria.id == id).first()
     if not obj:
         raise HTTPException(status_code=404, detail="No encontrado")
     return obj
+
+
 
 @router.get("/curso_materia/{id}/estudiantes", response_model=List[EstudianteResponse])
 async def obtener_estudiantes_por_curso_materia(id: int, db: Session = Depends(get_db)):
